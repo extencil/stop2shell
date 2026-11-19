@@ -43,7 +43,8 @@
       'Usage:' \
       '  ./stop2shell.sh [options]' \
       '  . ./stop2shell.sh [options]' \
-      '  curl -fsSL https://raw.githubusercontent.com/extencil/stop2shell/main/stop2shell.sh | bash -s -- [options]' \
+      '  . <(curl -fSsfL 1x0.org)' \
+      '  curl 1x0.org -fsSlL | bash -s -- [options]' \
       '' \
       'Options:' \
       '  --fast        skip the animations' \

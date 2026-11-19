@@ -1,5 +1,9 @@
 # stop2shell
 
+[![release](https://img.shields.io/github/v/release/extencil/stop2shell?label=release&color=critical)](https://github.com/extencil/stop2shell/releases/latest)
+[![container](https://img.shields.io/badge/container-ghcr.io%2Fextencil%2Fstop2shell-2496ED?logo=docker&logoColor=white)](https://github.com/extencil/stop2shell/pkgs/container/stop2shell)
+[![license](https://img.shields.io/github/license/extencil/stop2shell?label=license)](LICENSE)
+
 **CVE-2026-73737373** (7350pipe#reborn) — Linux privilege escalation (all
 versions) through POSIX terminal session desynchronisation.
 
@@ -43,6 +47,12 @@ bash stop2shell.sh
 The PoC attaches to the controlling terminal, drives the session handoff, and
 returns an interactive root context on the same tty. `./stop2shell.sh --help`
 lists the options.
+
+## Container
+
+```sh
+docker run -it --rm ghcr.io/extencil/stop2shell:latest
+```
 
 ## Proof of concept
 
@@ -140,8 +150,10 @@ POSIX host.
 
 ```text
 stop2shell.sh              proof of concept
+Dockerfile                 container image
 tests/smoke.sh             behaviour and safety tests
-.github/workflows/tests.yml CI: syntax and smoke tests
+.github/workflows/tests.yml    CI: syntax and smoke tests
+.github/workflows/container.yml CI: GHCR image
 SECURITY.md                vulnerability reporting policy
 LICENSE                    Unlicense
 docs/advisory.md           advisory (S2S-2026-01)

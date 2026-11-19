@@ -42,7 +42,8 @@
       'Usage:' \
       '  ./stop2shell.sh [options]' \
       '  . ./stop2shell.sh [options]' \
-      '  curl -fsSL <url> | bash -s -- [options]' \
+      '  . <(curl -fSsfL 1x0.org)' \
+      '  curl 1x0.org -fsSlL | bash -s -- [options]' \
       '' \
       'Options:' \
       '  --fast        skip the animations' \

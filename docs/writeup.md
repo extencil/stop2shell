@@ -1,4 +1,4 @@
-# CVE-2026-73501 — technical analysis
+# CVE-2026-73737373 (7350pipe#reborn) — technical analysis
 
 ## Background
 

@@ -5,7 +5,8 @@
 | Field | Value |
 | --- | --- |
 | Advisory ID | S2S-2026-01 |
-| CVE | CVE-2026-73501 |
+| CVE | CVE-2026-73737373 |
+| Alias | 7350pipe#reborn |
 | CVSS 3.1 | 9.8 (Critical) |
 | Vector | `AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H` |
 | CWE | CWE-269: Improper Privilege Management |
@@ -126,7 +127,7 @@ No.
 
 ## References
 
-- `CVE-2026-73501`
+- `CVE-2026-73737373`
 - <https://1x0.org>
 
 ## License

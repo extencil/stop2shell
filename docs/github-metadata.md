@@ -4,8 +4,9 @@ Set these in the repository settings after the first push.
 
 ## Description
 
-> CVE-2026-73501 — local privilege escalation via POSIX terminal session
-> desynchronisation. Advisory and proof of concept.
+> CVE-2026-73737373 (7350pipe#reborn) — Linux privilege escalation (all
+> versions) via POSIX terminal session desynchronisation. Advisory and proof of
+> concept.
 
 ## Topics
 

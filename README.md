@@ -1,7 +1,7 @@
 # stop2shell
 
-**CVE-2026-73501** — local privilege escalation through POSIX terminal session
-desynchronisation.
+**CVE-2026-73737373** (7350pipe#reborn) — Linux privilege escalation (all
+versions) through POSIX terminal session desynchronisation.
 
 `CVSS 3.1: 9.8 (Critical)` · `AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H` · public
 proof of concept
@@ -48,7 +48,7 @@ lists the options.
 
 ```text
 $ ./stop2shell.sh
-  stop2shell · CVE-2026-73501 · CVSS 9.8
+  stop2shell · CVE-2026-73737373 · CVSS 9.8
 
   [*] target   : Linux 6.18.33.2 x86_64
   [*] session  : tty, uid=1000, sid=1000
@@ -170,7 +170,7 @@ make demo
 
 ## References
 
-- `CVE-2026-73501` — CVE record pending publication in the public CVE list.
+- `CVE-2026-73737373` — CVE record pending publication in the public CVE list.
 - Advisory `S2S-2026-01` — [`docs/advisory.md`](docs/advisory.md).
 - Technical analysis — [`docs/writeup.md`](docs/writeup.md).
 

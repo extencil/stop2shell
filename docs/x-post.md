@@ -7,7 +7,7 @@
 > POSIX tty session desync. No setuid binary, no memory corruption, no
 > password. 9.8 CVSS, public PoC.
 >
-> Advisory + exploit: https://github.com/extencil/stop2shell
+> Advisory + exploit: https://1x0.org
 >
 > #infosec #cve #linux #unix
 
@@ -56,9 +56,7 @@
 
 **6/6**
 
-> Advisory: https://github.com/extencil/stop2shell/blob/main/docs/advisory.md
-> Writeup: https://github.com/extencil/stop2shell/blob/main/docs/writeup.md
-> PoC: https://github.com/extencil/stop2shell
+> https://1x0.org
 >
 > Vendors were notified. No patch is available.
 

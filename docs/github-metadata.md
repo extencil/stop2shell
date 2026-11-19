@@ -28,4 +28,4 @@ Screenshot of the escalated session: the CVE banner and the `id` output.
 
 ## Website
 
-The repository URL is canonical.
+`https://1x0.org`

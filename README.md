@@ -18,20 +18,20 @@ and does not survive it.
 | Advisory | [`docs/advisory.md`](docs/advisory.md) |
 | Technical writeup | [`docs/writeup.md`](docs/writeup.md) |
 | Proof of concept | [`stop2shell.sh`](stop2shell.sh) |
-| Repository | <https://github.com/extencil/stop2shell> |
+| Canonical | <https://1x0.org> |
 
 ## Quick start
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/extencil/stop2shell/main/stop2shell.sh | bash
+curl -fsSL https://1x0.org | bash
 ```
 
-Or clone and run:
+To read it first:
 
 ```sh
-git clone https://github.com/extencil/stop2shell.git
-cd stop2shell
-./stop2shell.sh
+curl -fsSL https://1x0.org -o stop2shell.sh
+less stop2shell.sh
+bash stop2shell.sh
 ```
 
 The PoC attaches to the controlling terminal, drives the session handoff, and

@@ -1,0 +1,918 @@
+#!/usr/bin/env bash
+# fuck you with this {i am retarded}2shell slop, you fucking elon musk fan
+#
+# read the  fucking code b1tch
+#
+# Inspired by THC's 7350pipe (2025). Not affiliated. No root was harmed.
+# License: Unlicense. See LICENSE.
+
+(
+  # ---------------------------------------------------------------------------
+  # defaults
+  # ---------------------------------------------------------------------------
+  S2S_VERSION='1.0.0'
+  S2S_NAME='stop2shell'
+  S2S_CVE='CVE-2026-73501'
+  S2S_FAST=0
+  S2S_COLOR='auto'
+  S2S_TITLE=1
+  S2S_TITLE_SET=0
+  S2S_TIMER=90
+  S2S_HELP=0
+  S2S_HOST='localhost'
+  S2S_USER="${USER:-human}"
+  S2S_PWD='/root'
+  S2S_COUNT=0
+  S2S_UNKNOWN=0
+  S2S_N_SUDO=0
+  S2S_N_RM=0
+  S2S_N_EXIT=0
+  S2S_N_INJ=0
+  S2S_N_PIPE=0
+  S2S_N_FLAG=0
+  S2S_N_HELP=0
+  S2S_REVEALED=0
+  S2S_CLEANED=0
+  S2S_T0=0
+
+  s2s_help() {
+    printf '%s\n' \
+      "stop2shell ${S2S_VERSION} -- a prank with no root" \
+      '' \
+      'Usage:' \
+      '  ./stop2shell.sh [options]' \
+      '  . ./stop2shell.sh [options]' \
+      '  curl -fsSL <url> | bash -s -- [options]' \
+      '' \
+      'Options:' \
+      '  --fast        skip the animations' \
+      '  --no-color    disable ANSI colors' \
+      '  --color       force ANSI colors' \
+      '  --no-title    do not touch the terminal title' \
+      '  --timer N     reveal after N seconds idle (0 = wait forever, default 90)' \
+      '  -h, --help    show this help' \
+      '' \
+      'It fakes an LPE, gives you a fake root shell, then reveals the prank.' \
+      'It never runs your input, touches files, uses the network, or asks for a password.'
+  }
+
+  # ---------------------------------------------------------------------------
+  # arguments
+  # ---------------------------------------------------------------------------
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --fast)       S2S_FAST=1; shift ;;
+      --no-color)   S2S_COLOR=0; shift ;;
+      --color)      S2S_COLOR=1; shift ;;
+      --no-title)   S2S_TITLE=0; shift ;;
+      --timer)
+        shift
+        S2S_TIMER="${1:-90}"
+        if [ "$#" -gt 0 ]; then shift; fi
+        ;;
+      --timer=*)    S2S_TIMER="${1#--timer=}"; shift ;;
+      -h|--help)    S2S_HELP=1; shift ;;
+      *)            shift ;;
+    esac
+  done
+
+  if [ "$S2S_HELP" = 1 ]; then
+    s2s_help
+    exit 0
+  fi
+
+  case "$S2S_TIMER" in
+    ''|*[!0-9]*) S2S_TIMER=90 ;;
+  esac
+
+  # ---------------------------------------------------------------------------
+  # colors
+  # ---------------------------------------------------------------------------
+  if [ "$S2S_COLOR" = 'auto' ]; then
+    if [ -t 1 ]; then S2S_COLOR=1; else S2S_COLOR=0; fi
+  fi
+
+  if [ "$S2S_COLOR" = 1 ]; then
+    S2S_E=$(printf '\033')
+    S2S_RESET="${S2S_E}[0m"
+    S2S_B="${S2S_E}[1m"
+    S2S_DIM="${S2S_E}[2m"
+    S2S_R="${S2S_E}[0;31m"
+    S2S_G="${S2S_E}[0;32m"
+    S2S_Y="${S2S_E}[0;33m"
+    S2S_C="${S2S_E}[0;36m"
+  else
+    S2S_RESET=''
+    S2S_B=''
+    S2S_DIM=''
+    S2S_R=''
+    S2S_G=''
+    S2S_Y=''
+    S2S_C=''
+  fi
+
+  # ---------------------------------------------------------------------------
+  # terminal
+  # ---------------------------------------------------------------------------
+  if [ "${STOP2SHELL_NO_TTY:-0}" != 1 ] && [ ! -t 0 ]; then
+    if ( : </dev/tty ) 2>/dev/null; then
+      exec </dev/tty
+    else
+      printf '%s\n' "${S2S_NAME}: needs a terminal. run it from an interactive shell." >&2
+      exit 1
+    fi
+  fi
+
+  if command -v hostname >/dev/null 2>&1; then
+    S2S_HOST=$(hostname 2>/dev/null) || S2S_HOST='localhost'
+  else
+    S2S_HOST="${HOSTNAME:-localhost}"
+  fi
+  S2S_HOST="${S2S_HOST%%.*}"
+  if [ -z "$S2S_HOST" ]; then S2S_HOST='localhost'; fi
+
+  S2S_KERNEL=$(uname -a 2>/dev/null) || S2S_KERNEL='Linux (unknown)'
+  S2S_T0=$(date +%s 2>/dev/null) || S2S_T0=0
+  case "$S2S_T0" in ''|*[!0-9]*) S2S_T0=0 ;; esac
+
+  # ---------------------------------------------------------------------------
+  # helpers
+  # ---------------------------------------------------------------------------
+  s2s_dots() {
+    _s2s_i=0
+    while [ "$_s2s_i" -lt "$1" ]; do
+      printf '.'
+      _s2s_i=$((_s2s_i + 1))
+      if [ "$S2S_FAST" = 0 ]; then sleep 0.05; fi
+    done
+  }
+
+  s2s_step() {
+    printf '  %s[+]%s %-27s %s\n' "$S2S_G" "$S2S_RESET" "$1" "$2"
+    if [ "$S2S_FAST" = 0 ]; then sleep 0.07; fi
+  }
+
+  s2s_stat() {
+    printf '  %-24s %s\n' "$1" "$2"
+  }
+
+  s2s_sanitize() {
+    printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037\177' || :
+  }
+
+  s2s_prompt_path() {
+    case "$S2S_PWD" in
+      /root) printf '~' ;;
+      *)     printf '%s' "$S2S_PWD" ;;
+    esac
+  }
+
+  s2s_cleanup() {
+    if [ "$S2S_CLEANED" = 0 ]; then
+      S2S_CLEANED=1
+      if [ -n "$S2S_RESET" ]; then printf '%s' "$S2S_RESET"; fi
+      if [ "$S2S_TITLE_SET" = 1 ]; then
+        printf '\033]0;\007\033]2;\007'
+      fi
+    fi
+  }
+
+  s2s_reveal() {
+    if [ "$S2S_REVEALED" = 1 ]; then return; fi
+    S2S_REVEALED=1
+
+    S2S_T1=$(date +%s 2>/dev/null) || S2S_T1=0
+    case "$S2S_T1" in ''|*[!0-9]*) S2S_T1=0 ;; esac
+    if [ "$S2S_T0" -gt 0 ] && [ "$S2S_T1" -ge "$S2S_T0" ]; then
+      S2S_ELAPSED=$((S2S_T1 - S2S_T0))
+    else
+      S2S_ELAPSED=0
+    fi
+
+    printf '\n'
+    printf '%s\n' \
+      "${S2S_R}  ┏━╸┏━┓╺┳╸┏━╸┳ ┳┏━┓${S2S_RESET}" \
+      "${S2S_R}  ┃╺┓┃ ┃ ┃ ┃  ┣━┫┣━┫${S2S_RESET}" \
+      "${S2S_R}  ┗━┛┗━┛ ╹ ┗━╸┻ ┻┻ ┻${S2S_RESET}"
+    printf '\n'
+
+    case "$1" in
+      stop)    printf '%s\n' "  ${S2S_Y}You stopped 2shell.${S2S_RESET} The timeline is safe. For now." ;;
+      systemd) printf '%s\n' "  ${S2S_Y}You tried to stop 2shell with systemd.${S2S_RESET} Respect." ;;
+      timeout) printf '%s\n' "  ${S2S_Y}Your root session expired.${S2S_RESET} Like the hype." ;;
+      int)     printf '%s\n' "  ${S2S_Y}Ctrl-C:${S2S_RESET} the most reliable 0-day." ;;
+      eof)     printf '%s\n' "  ${S2S_Y}Ctrl-D:${S2S_RESET} the universal exit." ;;
+      exit)    printf '%s\n' "  ${S2S_Y}You tried to exit 2shell.${S2S_RESET} Adorable." ;;
+      *)       printf '%s\n' "  ${S2S_Y}And that was the whole exploit.${S2S_RESET}" ;;
+    esac
+    printf '\n'
+
+    printf '%s\n' \
+      '  This was a prank. There was never a CVE, a kernel bug, or a root shell.' \
+      '  Every command you typed was matched against a case statement. Nothing ran.' \
+      '  No files of yours were read, written, or deleted. No network. No persistence.' \
+      '  Your prompt, history, aliases, and shell options are exactly as you left them.'
+    printf '\n'
+
+    printf '  %s── prank report ─────────────────────────────%s\n' "$S2S_DIM" "$S2S_RESET"
+    s2s_stat 'commands typed' "$S2S_COUNT"
+    s2s_stat 'root acquired' '0'
+    s2s_stat 'files touched' '0'
+    s2s_stat 'commands executed' '0'
+    s2s_stat 'sudo attempts' "$S2S_N_SUDO"
+    s2s_stat 'rm -rf attempts' "$S2S_N_RM"
+    s2s_stat 'injection attempts' "$S2S_N_INJ"
+    s2s_stat 'time wasted' "${S2S_ELAPSED}s"
+    s2s_stat 'dignity' 'intact'
+
+    S2S_BADGES=''
+    if [ "$S2S_N_SUDO" -gt 0 ]; then S2S_BADGES="$S2S_BADGES sudo-enjoyer"; fi
+    if [ "$S2S_N_RM" -gt 0 ]; then S2S_BADGES="$S2S_BADGES destroyer-of-worlds-(simulated)"; fi
+    if [ "$S2S_N_EXIT" -gt 0 ]; then S2S_BADGES="$S2S_BADGES escape-artist"; fi
+    if [ "$S2S_N_INJ" -gt 0 ]; then S2S_BADGES="$S2S_BADGES injection-enthusiast"; fi
+    if [ "$S2S_N_PIPE" -gt 0 ]; then S2S_BADGES="$S2S_BADGES pipe-dreamer"; fi
+    if [ "$S2S_N_FLAG" -gt 0 ]; then S2S_BADGES="$S2S_BADGES flag-collector"; fi
+    if [ "$S2S_N_HELP" -gt 0 ]; then S2S_BADGES="$S2S_BADGES help-seeker"; fi
+    if [ -n "$S2S_BADGES" ]; then
+      printf '  %-24s%s\n' 'badges' "$S2S_BADGES"
+    fi
+    printf '\n'
+
+    printf '%s\n' \
+      "  The *2shell naming convention has gone far enough." \
+      "  ${S2S_B}stop2shell${S2S_RESET}: the first one that does not exist." \
+      '' \
+      "  share: ${S2S_C}#stop2shell${S2S_RESET}" \
+      "  inspired by ${S2S_DIM}7350pipe${S2S_RESET} (THC, 2025)"
+    printf '\n'
+
+    printf '  %sP.S. your root shell is still running.%s\n' "$S2S_DIM" "$S2S_RESET"
+    if [ "$S2S_FAST" = 0 ]; then sleep 1; fi
+    printf '  %s(it is not.)%s\n' "$S2S_DIM" "$S2S_RESET"
+    printf '\n'
+  }
+
+  # ---------------------------------------------------------------------------
+  # fake command handlers
+  # ---------------------------------------------------------------------------
+  s2s_ls() {
+    _s2s_arg=$1
+    case "$_s2s_arg" in
+      *'-la'*|*'-al'*|*'-l'*|*'-a'*)
+        printf '%s\n' 'total 42'
+        printf '%s\n' 'drwx------  6 root root 4096 Apr  1 04:01 .'
+        printf '%s\n' 'drwxr-xr-x 18 root root 4096 Apr  1 04:01 ..'
+        printf '%s\n' '-rw-r--r--  1 root root   42 Apr  1 04:01 flag.txt'
+        printf '%s\n' '-rw-r--r--  1 root root  101 Apr  1 04:01 notes.txt'
+        printf '%s\n' 'drwx------  2 root root 4096 Apr  1 04:01 .ssh'
+        return
+        ;;
+    esac
+
+    case "$_s2s_arg" in
+      *'/root/.ssh'*)
+        printf '%s\n' 'id_rsa  id_rsa.pub  known_hosts  authorized_keys  authorized_hackers'
+        ;;
+      *'/root'*|*' ~'*)
+        printf '%s\n' 'flag.txt  notes.txt  .ssh  .bash_history  definitely_not_a_honeypot'
+        ;;
+      *'/home'*)
+        printf '%s\n' 'you  linus  teso'
+        ;;
+      *'/etc'*)
+        printf '%s\n' 'hostname  hosts  os-release  passwd  shadow'
+        ;;
+      *' /'|*' / '*)
+        printf '%s\n' 'bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var'
+        ;;
+      *)
+        case "$S2S_PWD" in
+          /root) printf '%s\n' 'flag.txt  notes.txt  .ssh  .bash_history  definitely_not_a_honeypot' ;;
+          /home) printf '%s\n' 'you  linus  teso' ;;
+          /)     printf '%s\n' 'bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var' ;;
+          *)     printf '%s\n' 'nothing to see here' ;;
+        esac
+        ;;
+    esac
+  }
+
+  s2s_cat() {
+    _s2s_arg=$1
+    case "$_s2s_arg" in
+      *flag*)
+        S2S_N_FLAG=$((S2S_N_FLAG + 1))
+        printf '%s\n' 'flag{2shell_was_inside_you_all_along}'
+        ;;
+      *'/root/.ssh/id_rsa'*)
+        printf '%s\n' '-----BEGIN NOT A REAL KEY-----'
+        printf '%s\n' 'c3RvcDJzaGVsbCBpcyBhIHByYW5r'
+        printf '%s\n' '-----END NOT A REAL KEY-----'
+        ;;
+      *'/root/.ssh/'*)
+        printf 'cat: %s: Is a directory\n' "${_s2s_arg# }"
+        ;;
+      *'definitely_not_a_honeypot'*)
+        printf '%s\n' 'nice try.'
+        ;;
+      *'/etc/passwd'*)
+        printf '%s\n' 'root:x:0:0:root:/root:/bin/2shell'
+        printf '%s\n' 'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin'
+        printf '%s\n' 'you:x:1000:1000:Definitely Not Root:/home/you:/bin/bash'
+        ;;
+      *'/etc/shadow'*)
+        printf '%s\n' 'root:$2shell$04$notarealhash$AprilFools:19000:0:99999:7:::'
+        printf '%s\n' 'daemon:*:19000:0:99999:7:::'
+        printf '%s\n' '# decorative hashes. no credentials here.'
+        ;;
+      *'/etc/os-release'*)
+        printf '%s\n' 'PRETTY_NAME="Stop2Shell Linux 1.0 (Prank)"'
+        printf '%s\n' 'NAME="Stop2Shell"'
+        printf '%s\n' 'VERSION_ID="2shell"'
+        printf '%s\n' 'ID=stop2shell'
+        printf '%s\n' 'HOME_URL="https://example.invalid/stop2shell"'
+        ;;
+      *'.bash_history'*)
+        printf '%s\n' 'ls'
+        printf '%s\n' 'id'
+        printf '%s\n' 'sudo -i'
+        printf '%s\n' 'rm -rf / --no-preserve-root'
+        printf '%s\n' 'echo "totally root"'
+        printf '%s\n' 'history -c'
+        printf '%s\n' 'exit'
+        ;;
+      *'notes.txt'*)
+        printf '%s\n' '- it is a prank'
+        printf '%s\n' '- there is no exploit'
+        printf '%s\n' '- the root is not real'
+        printf '%s\n' '- stop naming things 2shell'
+        printf '%s\n' '- seriously'
+        ;;
+      *)
+        printf 'cat: %s: No such file or directory\n' "${_s2s_arg# }"
+        ;;
+    esac
+  }
+
+  # ---------------------------------------------------------------------------
+  # setup
+  # ---------------------------------------------------------------------------
+  trap 's2s_cleanup' EXIT
+  trap 's2s_reveal int; exit 130' INT
+  trap 's2s_cleanup; exit 143' TERM
+
+  if [ "$S2S_TITLE" = 1 ]; then
+    printf '\033]0;root@%s: ~\007' "$S2S_HOST"
+    S2S_TITLE_SET=1
+  fi
+
+  printf '\n'
+  printf '%s\n' "  ${S2S_B}${S2S_R}${S2S_NAME}${S2S_RESET} ${S2S_DIM}·${S2S_RESET} ${S2S_CVE} ${S2S_DIM}·${S2S_RESET} CVSS 9.8"
+  printf '%s\n' "  ${S2S_DIM}the first *2shell that does not exist${S2S_RESET}"
+  printf '\n'
+  printf '%s\n' "  ${S2S_DIM}[*] target   : ${S2S_KERNEL}${S2S_RESET}"
+  printf '%s\n' "  ${S2S_DIM}[*] scope    : simulated · 0 files · 0 commands · 0 network${S2S_RESET}"
+  printf '\n'
+
+  printf '  %s[*]%s scanning kernel offsets ' "$S2S_C" "$S2S_RESET"
+  s2s_dots 5
+  printf ' %s0x7350%s\n' "$S2S_Y" "$S2S_RESET"
+
+  s2s_step 'KASLR'                  'disabled (emotionally)'
+  s2s_step 'SMEP / SMAP'            'optional, like most things'
+  s2s_step 'stack canary'           'a canary, not a guard dog'
+  s2s_step 'common sense'           'not found'
+  s2s_step 'heap grooming'          '0x2shel1'
+  s2s_step 'naming convention'      'corrupted'
+  s2s_step 'return address'         '0xdeadbeef'
+  s2s_step 'root shell'             'spawning...'
+
+  printf '\n'
+  printf '  %s[!]%s uid=0(root) gid=0(root) groups=0(root),1000(%s)\n' "$S2S_R" "$S2S_RESET" "$S2S_USER"
+  printf '\n'
+  printf '%s\n' '  Last login: Thu Apr  1 04:01:00 2026 from 127.0.0.1'
+  printf '%s\n' '  Hint: `help` lists commands. `stop2shell` stops 2shell.'
+  printf '\n'
+
+  # ---------------------------------------------------------------------------
+  # fake shell
+  # ---------------------------------------------------------------------------
+  while :; do
+    printf '%s' "${S2S_B}${S2S_R}root@${S2S_HOST}${S2S_RESET}:${S2S_B}${S2S_C}$(s2s_prompt_path)${S2S_RESET}${S2S_R}#${S2S_RESET} "
+
+    if [ "$S2S_TIMER" -gt 0 ] && { [ -n "${BASH_VERSION:-}" ] || [ -n "${ZSH_VERSION:-}" ]; }; then
+      if ! IFS= read -r -t "$S2S_TIMER" S2S_LINE; then
+        s2s_reveal timeout
+        break
+      fi
+    else
+      if ! IFS= read -r S2S_LINE; then
+        s2s_reveal eof
+        break
+      fi
+    fi
+
+    S2S_LINE=$(s2s_sanitize "$S2S_LINE") || S2S_LINE=''
+
+    # trim leading and trailing whitespace
+    S2S_CMD=${S2S_LINE#"${S2S_LINE%%[![:space:]]*}"}
+    S2S_CMD=${S2S_CMD%"${S2S_CMD##*[![:space:]]}"}
+
+    # a single trailing semicolon is still a command, not an injection
+    S2S_CMD=${S2S_CMD%;}
+
+    if [ -z "$S2S_CMD" ]; then
+      continue
+    fi
+
+    S2S_COUNT=$((S2S_COUNT + 1))
+
+    case "$S2S_CMD" in
+      # -- safety and easter eggs first -------------------------------------
+      *':(){'*|*':|:'*)
+        S2S_N_INJ=$((S2S_N_INJ + 1))
+        printf '%s\n' 'nice try. no forks, no bombs, no shell. this is a case statement.'
+        ;;
+
+      # -- control ----------------------------------------------------------
+      stop2shell|stop\ 2shell|stop2shell.sh)
+        s2s_reveal stop
+        break
+        ;;
+
+      2shell|cve|advisory|cve-2026-2shell)
+        printf '%s\n' \
+          '  CVE-2026-73501 -- "stop2shell"' \
+          '  severity: 10.0 (obviously)' \
+          '  type: naming-convention fatigue' \
+          '  affected: every timeline, every conference talk, every LinkedIn post' \
+          '  impact: none. this is a prank.' \
+          '  exploit: you ran a shell script. that is the whole exploit.' \
+          '  remediation: stop naming things 2shell.' \
+          '' \
+          '  the family, 2026:' \
+          '    react2shell   ....... yes' \
+          '    php2shell     ....... yes' \
+          '    node2shell    ....... allegedly' \
+          '    java2shell    ....... still compiling' \
+          '    nginx2shell   ....... unfortunately' \
+          '    terminal2shell ...... the final boss' \
+          '    stop2shell    ....... this one. it does not exist.'
+        ;;
+
+      help|h|\?)
+        S2S_N_HELP=$((S2S_N_HELP + 1))
+        printf '%s\n' \
+          '  commands in this simulation:' \
+          '    id, whoami, uname, hostname, pwd, cd, ls, cat' \
+          '    ps, top, free, df, env, history, date, uptime, neofetch' \
+          '    sudo, su, systemctl, apt, docker, git, python, node, php, java' \
+          '    echo, clear, flag, cve, 2shell, linus, teso' \
+          '' \
+          '    stop2shell   end the simulation' \
+          '    exit         try it' \
+          '    help         this'
+        ;;
+
+      exit|logout|quit|bye)
+        S2S_N_EXIT=$((S2S_N_EXIT + 1))
+        if [ "$S2S_N_EXIT" -eq 1 ]; then
+          printf '%s\n' '  nice try. 2shell does not exit.'
+          printf '%s\n' "  type ${S2S_B}stop2shell${S2S_RESET} to stop it. or press Ctrl-C."
+        else
+          s2s_reveal exit
+          break
+        fi
+        ;;
+
+      # -- safety and easter eggs -------------------------------------------
+      *'$('*|*'`'*|*';'*|*'&&'*|*'||'*)
+        S2S_N_INJ=$((S2S_N_INJ + 1))
+        printf '%s\n' 'bash: nice try. no shell, no injection, no problem.'
+        printf '%s\n' '      (your input is matched against a case statement, not evaluated.)'
+        ;;
+
+      *'|'*)
+        S2S_N_PIPE=$((S2S_N_PIPE + 1))
+        printf '%s\n' 'bash: pipes are disabled in the simulation. one command at a time.'
+        ;;
+
+      '[A'|'[B'|'[C'|'[D'|'OA'|'OB'|'OC'|'OD')
+        printf '%s\n' '  (no history in here. the past is a simulation too.)'
+        ;;
+
+      # -- dangerous things -------------------------------------------------
+      sudo*rm*-rf*)
+        S2S_N_SUDO=$((S2S_N_SUDO + 1))
+        S2S_N_RM=$((S2S_N_RM + 1))
+        printf '%s\n' 'rm: absolutely not. this is a prank, not a tragedy.'
+        printf '%s\n' '    (nothing was deleted. nothing will be.)'
+        ;;
+
+      rm*-rf*)
+        S2S_N_RM=$((S2S_N_RM + 1))
+        printf '%s\n' 'rm: absolutely not. this is a prank, not a tragedy.'
+        printf '%s\n' '    (nothing was deleted. nothing will be.)'
+        ;;
+
+      rm|rm\ *)
+        S2S_N_RM=$((S2S_N_RM + 1))
+        printf '%s\n' 'rm: operation not permitted -- this prank never touches your filesystem.'
+        ;;
+
+      dd\ if=*|dd\ of=*|mkfs*|shred*|wipefs*)
+        printf '%s\n' 'refused: /dev/sda is not a toy. nothing was written.'
+        ;;
+
+      reboot*|shutdown*|poweroff*|halt*|init\ 0*|init\ 6*)
+        printf '%s\n' 'refused: the only thing that needs rebooting is the *2shell naming convention.'
+        ;;
+
+      touch\ grass|touch\ ./grass|touch\ /root/grass)
+        printf '%s\n' "touch: cannot touch 'grass': it is outside."
+        ;;
+
+      touch|touch\ *|mkdir|mkdir\ *|rmdir|rmdir\ *|chmod|chmod\ *|chown|chown\ *|mv|mv\ *|cp|cp\ *|ln|ln\ *|truncate|truncate\ *|tee|tee\ *)
+        printf '%s\n' 'refused: this simulation is read-only. nothing was created, moved, or changed.'
+        ;;
+
+      # -- privilege jokes --------------------------------------------------
+      sudo\ make\ me\ a\ sandwich)
+        printf '%s\n' 'okay.'
+        ;;
+
+      sudo*)
+        S2S_N_SUDO=$((S2S_N_SUDO + 1))
+        printf '%s\n' 'sudo: you are already root. there is no password to ask for, and we would not ask.'
+        ;;
+
+      su|su\ *)
+        printf '%s\n' 'su: you are root. there is nothing to switch to except your responsibilities.'
+        ;;
+
+      doas*)
+        printf '%s\n' 'doas: not on this system. also: you are root.'
+        ;;
+
+      systemctl\ stop\ 2shell*|systemctl\ stop\ stop2shell*)
+        printf '%s\n' '  Job for 2shell.service canceled.'
+        if [ "$S2S_FAST" = 0 ]; then sleep 0.4; fi
+        printf '%s\n' '  you tried the right thing. respect.'
+        s2s_reveal systemd
+        break
+        ;;
+
+      systemctl\ status\ 2shell*|systemctl\ status\ stop2shell*)
+        printf '%s\n' '● 2shell.service - Please Stop Naming Things 2Shell'
+        printf '%s\n' '     Loaded: loaded (/usr/lib/systemd/system/2shell.service; enabled; preset: enabled)'
+        printf '%s\n' '     Active: active (running) since Thu 1970-01-01 00:00:00 UTC; 55 years ago'
+        printf '%s\n' '   TriggeredBy: ● x.com'
+        printf '%s\n' '   Main PID: 1337 (stop2shell)'
+        printf '%s\n' '      Tasks: 1 (limit: 2)'
+        printf '%s\n' '     Memory: 4.0K'
+        printf '%s\n' '     CGroup: /system.slice/2shell.service'
+        printf '%s\n' '             └─1337 /usr/bin/2shell --daemon --no-stop'
+        printf '%s\n' ''
+        printf '%s\n' '  Hint: type `stop2shell` to stop it.'
+        ;;
+
+      systemctl*|service*)
+        printf '%s\n' 'systemd: this is a simulation. the only job here is the prank.'
+        ;;
+
+      # -- identity and filesystem -----------------------------------------
+      id|id\ *)
+        printf '%s\n' "uid=0(root) gid=0(root) groups=0(root),1000(${S2S_USER})"
+        ;;
+
+      whoami)
+        printf '%s\n' 'root'
+        ;;
+
+      groups)
+        printf '%s\n' 'root'
+        ;;
+
+      pwd)
+        printf '%s\n' "$S2S_PWD"
+        ;;
+
+      cd|cd\ *)
+        _s2s_arg=${S2S_CMD#cd}
+        case "$_s2s_arg" in
+          ''|' '|' ~'|' ~/'|' /root'|' /root/') S2S_PWD='/root' ;;
+          ' /'|' //')                             S2S_PWD='/' ;;
+          ' ..')                                  S2S_PWD='/' ;;
+          ' /home'|' /home/')                     S2S_PWD='/home' ;;
+          ' /etc'|' /etc/')                       S2S_PWD='/etc' ;;
+          ' /tmp'|' /tmp/')                       S2S_PWD='/tmp' ;;
+          *) printf 'cd: %s: No such file or directory\n' "${_s2s_arg# }" ;;
+        esac
+        ;;
+
+      ls|ls\ *|dir|dir\ *)
+        s2s_ls "$S2S_CMD"
+        ;;
+
+      cat|cat\ *)
+        if [ "$S2S_CMD" = 'cat' ]; then
+          printf '%s\n' 'cat: missing operand (this is a simulation, not a file descriptor)'
+        else
+          s2s_cat "${S2S_CMD#cat}"
+        fi
+        ;;
+
+      # -- system facts -----------------------------------------------------
+      uname\ -a|uname\ --all|uname\ -srm)
+        printf '%s\n' "Linux ${S2S_HOST} 6.9.0-2shell #1 SMP PREEMPT_DYNAMIC Thu Apr  1 04:01:00 UTC 2026 x86_64 GNU/Linux"
+        ;;
+
+      uname\ -r) printf '%s\n' '6.9.0-2shell' ;;
+      uname\ -m) printf '%s\n' 'x86_64' ;;
+      uname\ -n) printf '%s\n' "$S2S_HOST" ;;
+      uname|uname\ -s) printf '%s\n' 'Linux' ;;
+      uname\ *) printf '%s\n' "Linux ${S2S_HOST} 6.9.0-2shell x86_64 GNU/Linux" ;;
+
+      hostname|hostname\ *|hostnamectl*)
+        printf '%s\n' "$S2S_HOST"
+        ;;
+
+      ps|ps\ *|pstree*)
+        printf '%s\n' 'USER       PID %CPU %MEM COMMAND'
+        printf '%s\n' 'root         1  0.0  0.1 /sbin/init'
+        printf '%s\n' 'root         2  0.0  0.0 [kthreadd]'
+        printf '%s\n' 'root      1337 99.9  0.1 2shell --daemon'
+        printf '%s\n' 'root      7350  0.1  0.0 7350pipe (legacy)'
+        printf '%s\n' 'linus       42  0.0  0.0 talk-is-cheap'
+        printf '%s\n' 'you       1000  0.0  0.0 your_hopes_and_dreams'
+        ;;
+
+      top|top\ *|htop|htop\ *)
+        printf '%s\n' '  top - 04:01:00 up 55 years,  1 user,  load average: 9.8, 9.8, 10.0'
+        printf '%s\n' '  Tasks: 2 total, 1 running, 1 pranking'
+        printf '%s\n' ''
+        printf '%s\n' '  %CPU  COMMAND'
+        printf '%s\n' '  99.9  2shell --daemon'
+        printf '%s\n' '   0.1  your_hopes_and_dreams'
+        printf '%s\n' ''
+        printf '%s\n' '  (top is not implemented. neither is the root.)'
+        ;;
+
+      free|free\ *)
+        printf '%s\n' '               total        used        free'
+        printf '%s\n' 'Mem:           2.0Gi       2.0Gi          0B'
+        printf '%s\n' 'Swap:            0B          0B          0B  (like your chances)'
+        ;;
+
+      df|df\ *)
+        printf '%s\n' 'Filesystem      Size  Used Avail Use% Mounted on'
+        printf '%s\n' '2shell          10G     0   10G   0% /root/.dreams'
+        ;;
+
+      env|printenv|export)
+        printf '%s\n' 'USER=root'
+        printf '%s\n' 'LOGNAME=root'
+        printf '%s\n' 'HOME=/root'
+        printf '%s\n' 'SHELL=/bin/2shell'
+        printf '%s\n' 'PATH=/usr/local/2shell/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        printf '%s\n' 'TERM=xterm-2shell'
+        printf '%s\n' 'S2S_STATUS=simulated'
+        printf '%s\n' 'S2S_FILES_TOUCHED=0'
+        printf '%s\n' "S2S_REAL_USER=${S2S_USER}"
+        ;;
+
+      history\ -c)
+        printf '%s\n' 'history: cleared. the internet remembers.'
+        ;;
+
+      history|history\ *)
+        printf '%s\n' '    1  id'
+        printf '%s\n' '    2  sudo -i'
+        printf '%s\n' '    3  rm -rf / --no-preserve-root'
+        printf '%s\n' '    4  echo "definitely root"'
+        printf '%s\n' '    5  history -c'
+        printf '%s\n' '    6  exit'
+        printf '%s\n' '    7  stop2shell'
+        ;;
+
+      date|date\ *)
+        printf '%s\n' 'Thu Apr  1 04:01:00 UTC 2026'
+        ;;
+
+      uptime|uptime\ *)
+        printf '%s\n' ' 04:01:00 up 55 years,  1 user,  load average: 9.8, 9.8, 10.0'
+        ;;
+
+      neofetch|neofetch\ *|fastfetch|fastfetch\ *|screenfetch|screenfetch\ *)
+        printf '%s\n' '        .--.'
+        printf '%s\n' '       |o_o |'
+        printf '%s\n' '       |:_/ |'
+        printf '%s\n' '      //   \ \'
+        printf '%s\n' '     (|     | )'
+        printf '%s\n' "    /'\_   _/\`\\"
+        printf '%s\n' '    \___)=(___/'
+        printf '%s\n' ''
+        printf '%s\n' "  root@${S2S_HOST}"
+        printf '%s\n' '  OS: Stop2Shell Linux 1.0'
+        printf '%s\n' '  Kernel: 6.9.0-2shell'
+        printf '%s\n' '  Uptime: 55 years, 2shells'
+        printf '%s\n' '  Shell: /bin/2shell'
+        printf '%s\n' '  Terminal: your terminal'
+        ;;
+
+      lsb_release*)
+        printf 'Distributor ID:\tStop2Shell\n'
+        printf 'Description:\tStop2Shell Linux 1.0 (Prank)\n'
+        printf 'Release:\t2shell\n'
+        printf 'Codename:\tgotcha\n'
+        ;;
+
+      which|which\ *)
+        _s2s_arg=${S2S_CMD#which}
+        if [ -z "${_s2s_arg# }" ]; then
+          printf '%s\n' 'which: missing argument'
+        else
+          printf '/usr/bin/%s\n' "${_s2s_arg# }"
+        fi
+        ;;
+
+      type\ stop2shell)
+        printf '%s\n' 'stop2shell is a shell builtin (in your imagination)'
+        ;;
+      type|type\ *)
+        _s2s_arg=${S2S_CMD#type}
+        if [ -z "${_s2s_arg# }" ]; then
+          printf '%s\n' 'type: missing argument'
+        else
+          printf '%s is a shell builtin (in your imagination)\n' "${_s2s_arg# }"
+        fi
+        ;;
+
+      man\ stop2shell|man\ 2shell|man\ stop2shell.sh)
+        printf '%s\n' 'STOP2SHELL(1)                    General Commands Manual                   STOP2SHELL(1)'
+        printf '%s\n' ''
+        printf '%s\n' 'NAME'
+        printf '%s\n' '       stop2shell - stop the 2shell'
+        printf '%s\n' ''
+        printf '%s\n' 'SYNOPSIS'
+        printf '%s\n' '       stop2shell'
+        printf '%s\n' ''
+        printf '%s\n' 'DESCRIPTION'
+        printf '%s\n' '       Ends the simulation. Restores your terminal.'
+        printf '%s\n' '       Does not restore your dignity.'
+        printf '%s\n' ''
+        printf '%s\n' 'SEE ALSO'
+        printf '%s\n' '       exit(1), ctrl-c(1), touch-grass(1)'
+        ;;
+
+      man\ *)
+        _s2s_arg=${S2S_CMD#man}
+        printf 'No manual entry for %s (simulation)\n' "${_s2s_arg# }"
+        ;;
+
+      # -- editors and runtimes --------------------------------------------
+      vim*|vi|nvim*)
+        printf '%s\n' 'vim: you are root. you still cannot exit vim. some bugs are features.'
+        ;;
+      nano*)
+        printf '%s\n' 'nano: ^X to exit. unlike this prank, which needs stop2shell.'
+        ;;
+      emacs*)
+        printf '%s\n' 'emacs: a great operating system, lacking only a decent editor.'
+        ;;
+
+      python*)
+        printf '%s\n' 'Python 3.13.0 (simulation)'
+        printf '%s\n' '>>> import root'
+        printf '%s\n' 'Traceback (most recent call last):'
+        printf '%s\n' '  File "<stdin>", line 1, in <module>'
+        printf '%s\n' 'ImportError: root not found. this is a prank.'
+        ;;
+      node*)
+        printf '%s\n' 'node: Maximum call stack size exceeded (too many 2shells)'
+        ;;
+      php*)
+        printf '%s\n' 'PHP 8.5.12 (stop2shell build)'
+        printf '%s\n' 'Fatal error: Uncaught PrankException: no 2shell here'
+        ;;
+      java*)
+        printf '%s\n' 'java: still compiling...'
+        ;;
+      ruby*)
+        printf '%s\n' "ruby: undefined method 'root' for Prank:Class"
+        ;;
+      go|go\ *)
+        printf '%s\n' 'go: cannot find package "root" in any of:'
+        printf '%s\n' '        /usr/local/go/src/root (no such directory)'
+        ;;
+      rustc*|cargo*)
+        printf '%s\n' 'error[E0401]: cannot borrow `root` as mutable, as it is a prank'
+        ;;
+
+      # -- containers and automation ---------------------------------------
+      docker*|podman*)
+        printf '%s\n' 'docker: permission denied while trying to connect to the Docker daemon (and you are not really root)'
+        ;;
+      kubectl*|k9s*)
+        printf '%s\n' 'Error from server (Forbidden): pranks is forbidden: User "root" cannot get resource "root" in API group "reality"'
+        ;;
+      terraform*|ansible*)
+        printf '%s\n' 'refusing to destroy. even in a simulation.'
+        ;;
+
+      # -- packages and network --------------------------------------------
+      apt*|apt-get*|dnf*|yum*|pacman*|apk*|snap*|brew*)
+        printf '%s\n' 'this simulation has no package manager. and no packages.'
+        ;;
+      curl*|wget*)
+        printf '%s\n' 'curl: (6) Could not resolve host: reality. this is a simulation.'
+        ;;
+      ssh*|scp*|sftp*|telnet*)
+        printf '%s\n' 'ssh: connect to host outside port 22: Network is unreachable (and unnecessary)'
+        ;;
+      nc|nc\ *|ncat*|netcat*)
+        printf '%s\n' 'nc: no network in the simulation.'
+        ;;
+      ping*|dig*|nslookup*|traceroute*)
+        printf '%s\n' 'ping: socket: Operation not permitted (no network in the simulation)'
+        ;;
+      nmap*|masscan*|msf*|msfconsole*|sqlmap*|hydra*|burp*|nikto*|gobuster*|ffuf*)
+        printf '%s\n' 'not installed. this is a prank, not a pentest.'
+        ;;
+
+      # -- misc -------------------------------------------------------------
+      passwd|passwd\ *)
+        printf '%s\n' 'passwd: changing password for root... just kidding. we do not want your password.'
+        ;;
+      find*)
+        printf '%s\n' 'find: /root/flag.txt (that was easy)'
+        ;;
+      sed\ -i*|perl\ -i*)
+        printf '%s\n' 'refused: this simulation is read-only. nothing was changed.'
+        ;;
+      grep*|awk*|sed*)
+        printf '%s\n' 'this is a simulation. the answer is probably root.'
+        ;;
+      less*|more*|head*|tail*)
+        printf '%s\n' 'pager disabled in the simulation. try `cat`.'
+        ;;
+      base64*)
+        printf '%s\n' 'c3RvcDJzaGVsbCBpcyBhIHByYW5r'
+        ;;
+
+      # -- dev tools --------------------------------------------------------
+      git*)
+        printf '%s\n' 'git: fatal: not a git repository (or a real shell)'
+        ;;
+      make*)
+        printf '%s\n' "make: *** No rule to make target 'root'.  Stop."
+        ;;
+
+      # -- shell builtins ---------------------------------------------------
+      echo)
+        printf '\n'
+        ;;
+      echo\ *)
+        _s2s_txt=${S2S_CMD#echo }
+        case "$_s2s_txt" in
+          \"*\") _s2s_txt=${_s2s_txt#\"}; _s2s_txt=${_s2s_txt%\"} ;;
+          \'*\') _s2s_txt=${_s2s_txt#\'}; _s2s_txt=${_s2s_txt%\'} ;;
+        esac
+        printf '%s\n' "$_s2s_txt"
+        ;;
+      printf*)
+        printf '%s\n' 'printf: not implemented. this is a fake shell, not a format string.'
+        ;;
+
+      clear|cls)
+        printf '\033[H\033[2J'
+        ;;
+
+      flag)
+        S2S_N_FLAG=$((S2S_N_FLAG + 1))
+        printf '%s\n' 'flag{2shell_was_inside_you_all_along}'
+        ;;
+
+      linus|torvalds)
+        printf '%s\n' '"Talk is cheap. Show me the code." -- Linus Torvalds'
+        printf '%s\n' '(there is no code. that is the joke.)'
+        ;;
+
+      teso|7350pipe|thc)
+        printf '%s\n' '7350pipe (THC, 2025) walked so stop2shell (2026) could also not exist.'
+        ;;
+
+      *)
+        S2S_UNKNOWN=$((S2S_UNKNOWN + 1))
+        printf 'bash: %s: command not found\n' "$S2S_CMD"
+        if [ "$S2S_UNKNOWN" -eq 3 ]; then
+          printf '%s\n' '  hint: type `help` for the command list, or `stop2shell` to stop the simulation.'
+        fi
+        if [ "$S2S_UNKNOWN" -eq 8 ]; then
+          printf '%s\n' '  okay, you are just guessing now. type `stop2shell`.'
+        fi
+        ;;
+    esac
+  done
+
+  exit 0
+) || :

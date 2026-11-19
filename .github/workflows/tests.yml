@@ -1,0 +1,23 @@
+name: tests
+
+'on':
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash -n stop2shell.sh
+          dash -n stop2shell.sh
+
+      - name: Smoke tests
+        run: bash tests/smoke.sh
